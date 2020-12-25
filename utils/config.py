@@ -9,6 +9,9 @@ batch_size = 256
 train_epochs = 50
 REG_WEIGHT = 1e-4
 CLIP = 5
+train_batch = 4
+val_batch = 64
+test_batch = 64
 
 # Data Process Parameters
 TRAIN_SPLIT = 0.7
@@ -21,6 +24,7 @@ MAX_LENGTH = 60
 rating_range = 5
 # rev_len = 31
 
+dataset_path = './data/Musical_Instruments_5/'
 # data_name = 'amazon_pet'
 # target_path = '%s/data/%s' % (root_path, data_name)
 # out_path = '%s/out/%s' % (root_path, data_name)

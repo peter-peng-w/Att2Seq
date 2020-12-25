@@ -5,7 +5,7 @@ from .config import MIN_FREQ, MAX_LENGTH
 
 
 def amazon_dataset_iters(
-        parent_path, batch_sizes=(32, 64, 64),
+        parent_path, batch_sizes=(16, 64, 64),
         minimum_frequency=MIN_FREQ,
         verbose=True):
     """Helper function for creating batch iterators over Amazon Reviews datasets.
@@ -85,5 +85,11 @@ def amazon_dataset_iters(
         sort=False,
         device=device
     )
+
+    print('Number of batches in 1 training epoch: {}'.format(len(train_iter)))
+    print('Number of batches in 1 validation epoch: {}'.format(len(val_iter)))
+    print('Number of batches in 1 testing epoch: {}'.format(len(test_iter)))
+
+    print('============== Dataset Loaded ==============')
 
     return item.vocab, user.vocab, text.vocab, train_iter, val_iter, test_iter

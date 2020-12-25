@@ -89,17 +89,20 @@ class Decoder(nn.Module):
         # input shape: (batch_size)
         # hidden shape: (n_layers*n_directions, batch_size, dec_hid_dim)
         # encoder_outputs shape: (feature_length(=3), batch_size, enc_hid_dim)
-        input = input.unsqueeeze(0)                         # input shape: (1, batch_size)
-        word_embed = self.dropout(self.embedding(input))    # word_embed shape: (1, batch_size, word_embed_dim)
-        output, hidden = self.rnn(word_embed, hidden)       # hidden: (n_layers*n_directions, batch_size, dec_hid_dim)
-        a = self.attention(hidden, encoder_outputs)         # a shape: (batch_size, feature_len(=3))
-        a = a.unsqueeze(dim=1)                              # a shape: (batch_size, 1, feature_len(=3))
-        encoder_outputs = encoder_outputs.permute(1, 0, 2)  # encoder_outputs: (batch_size, feature_len(=3), enc_hid_dim)
-        weighted = torch.bmm(a, encoder_outputs)            # weighted: (batch_size, 1, enc_hid_dim)
+        input = input.unsqueeze(0)                              # input shape: (1, batch_size)
+        word_embed = self.dropout(self.embedding(input))        # word_embed shape: (1, batch_size, word_embed_dim)
+        # Compute decoder hidden state
+        # hidden: (n_layers*n_directions, batch_size, dec_hid_dim)
+        # output: (seq_len(=1), batch_size, num_directions*dec_hid_dim)
+        output, hidden = self.rnn(word_embed, hidden)
+        a = self.attention(hidden, encoder_outputs)             # a shape: (batch_size, feature_len(=3))
+        a = a.unsqueeze(dim=1)                                  # a shape: (batch_size, 1, feature_len(=3))
+        encoder_outputs = encoder_outputs.permute(1, 0, 2)      # encoder_outputs: (batch_size, feature_len(=3), enc_hid_dim)
+        weighted = torch.bmm(a, encoder_outputs).squeeze(1)     # weighted: (batch_size, enc_hid_dim)
         # Compute attention context vector
+        # attn_hidden shape: (batch_size, dec_hid_dim)
         attn_hidden = torch.tanh(self.attention_fc(weighted) + self.decodetop_fc(hidden[-1]))
-        prediction = self.fc_out(attn_hidden)               # prediction shape: (batch_size, output_dim)
-
+        prediction = self.fc_out(attn_hidden)                   # prediction shape: (batch_size, output_dim)
         return prediction, hidden
 
 
@@ -133,7 +136,7 @@ class Att2Seq(nn.Module):
             # receive output tensor (predictions) and new hidden state
             output, hidden = self.decoder(input, hidden, encoder_outputs)
             # place predictions in a tensor holding predictions for each token
-            outputs[t] = outputs
+            outputs[t] = output
             # decide if we are going to use teacher forcing or not
             teacher_force = random.random() < teacher_forcing_ratio
 

@@ -11,6 +11,7 @@ from utils import config as conf
 from model.att2seq import Decoder, Encoder, Attention, Att2Seq
 from nltk.translate.bleu_score import sentence_bleu
 from nltk.translate import bleu_score
+from utils import config
 
 
 def test_review_bleu(gts_data, generate_data, vocab, bleu_totals, length, epoch):
@@ -61,16 +62,24 @@ def train_epoch(model, iterator, optimizer, criterion, clip):
     running_loss = 0.0
     for i, batch in enumerate(iterator):
         user = batch.user
+        # print('user shape: {}'.format(user.shape))
         item = batch.item
+        # print('item shape: {}'.format(item.shape))
         rating = batch.rating
+        # print('rating shape: {}'.format(rating.shape))
         text = batch.text
+        # print('text shape: {}'.format(text.shape))
+        # print('user: {}'.format(user))
+        # print('item: {}'.format(item))
+        # print('rating: {}'.format(rating))
+        # print('text: {}'.format(text))
         optimizer.zero_grad()
         output = model(user, item, rating, text)        # output: (text_length, batch_size, output_dim(=text vocab size))
         output_dim = output.shape[-1]
-        output = output[1:].view(-1, output_dim)
+        pred_output = output[1:].view(-1, output_dim)
         gt_text = text[1:].view(-1)
         # compute loss (cross entropy)
-        loss = criterion(output, gt_text)
+        loss = criterion(pred_output, gt_text)
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
         optimizer.step()
@@ -136,9 +145,9 @@ def train(args):
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
     # Loading the dataset
-    dataset_folder = './data/Musical_Instruments_5/'
+    dataset_folder = config.dataset_path
     item_vocab, user_vocab, text_vocab, train_iter, val_iter, test_iter = (
-        amazon_dataset_iters(dataset_folder, batch_sizes=(32, 32, 32))
+        amazon_dataset_iters(dataset_folder, batch_sizes=(config.train_batch, config.val_batch, config.test_batch))
     )
 
     # Count user and item number
@@ -174,6 +183,7 @@ def train(args):
         train_loss = train_epoch(model, train_iter, optimizer, criterion, conf.CLIP)
         # Validation Procedure
         valid_loss = valid_epoch(model, val_iter, criterion, epoch, text_vocab)
+        valid_loss_train = valid_epoch(model, train_iter, criterion, epoch, text_vocab)
         end_time = time.time()
         epoch_mins, epoch_secs = epoch_time(start_time, end_time)
 
@@ -181,14 +191,18 @@ def train(args):
             best_valid_loss = valid_loss
             torch.save(model.state_dict(), 'att2seq_best.pth')
 
+        if (epoch + 1) % args.save_model_freq == 0:
+            torch.save(model.state_dict(), 'att2seq_{}_epoch.pth'.format(epoch+1))
+
         print(f'Epoch: {epoch+1:02} | Time: {epoch_mins}m {epoch_secs}s')
         print(f'\tTrain Loss: {train_loss:.3f} | Train PPL: {math.exp(train_loss):7.3f}')
-        print(f'\t Val. Loss: {valid_loss:.3f} |  Val. PPL: {math.exp(valid_loss):7.3f}')
+        print(f'\t Val. Loss(valid): {valid_loss:.3f} |  Val. PPL: {math.exp(valid_loss):7.3f}')
+        print(f'\t Val. Loss(train): {valid_loss_train:.3f} |  Val. PPL: {math.exp(valid_loss_train):7.3f}')
 
     # Testing Procedure
     print('Finished training, start testing ...')
     model.load_state_dict(torch.load('att2seq_best.pth'))
-    test_loss = valid_epoch(model, test_iter, criterion)
+    test_loss = valid_epoch(model, test_iter, criterion, args.num_epoch, text_vocab)
     print(f'| Test Loss: {test_loss:.3f} | Test PPL: {math.exp(test_loss):7.3f} |')
 
 
@@ -199,10 +213,10 @@ if __name__ == '__main__':
 
     parser.add_argument('--log_dir', type=str, default='./logging', help='The path of the logging dir')
     # Put custom arguments here
-    parser.add_argument('-n', '--num_epoch', type=int, default=1)
-    parser.add_argument('-lr', '--learning_rate', type=float, default=1e-3)
+    parser.add_argument('-n', '--num_epoch', type=int, default=50)
+    parser.add_argument('-lr', '--learning_rate', type=float, default=1e-4)
     parser.add_argument('-c', '--continue_training', action='store_true')
-    parser.add_argument('-sf', '--save_model_freq', type=int, default=2, help='Frequency of saving model, per epoch')
+    parser.add_argument('-sf', '--save_model_freq', type=int, default=5, help='Frequency of saving model, per epoch')
     parser.add_argument('-s', '--save_dir', type=str, default='./exp', help='The path of experiment model dir')
     parser.add_argument('-b', '--batch_size', type=int, default=64, help='batch size for traning')
 
