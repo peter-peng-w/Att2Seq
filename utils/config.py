@@ -5,21 +5,23 @@ enc_hid_dim = 64
 rnn_layers = 2
 dropout = 0.2
 learning_rate = 2e-3
-batch_size = 256
+alpha = 0.95            # smoothing constant parameter of RMSprop optimizer
 train_epochs = 50
 REG_WEIGHT = 1e-4
 CLIP = 5
-train_batch = 4
+train_batch = 128
 val_batch = 64
 test_batch = 64
+teacher_forcing = 0.5
 
 # Data Process Parameters
 TRAIN_SPLIT = 0.7
 TEST_SPLIT = 0.2
 VAL_SPLIT = 0.1
 
-MIN_FREQ = 2
+MIN_FREQ = 10
 MAX_LENGTH = 60
+MAX_VOCAB = 20000
 
 rating_range = 5
 # rev_len = 31

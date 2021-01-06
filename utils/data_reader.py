@@ -1,7 +1,7 @@
 import torch
 from torchtext import data
 
-from .config import MIN_FREQ, MAX_LENGTH
+from .config import MIN_FREQ, MAX_LENGTH, MAX_VOCAB
 
 
 def amazon_dataset_iters(
@@ -74,7 +74,8 @@ def amazon_dataset_iters(
     user.build_vocab(train)
     if verbose:
         print('user vocab built')
-    text.build_vocab(train.text, min_freq=minimum_frequency)
+    # text.build_vocab(train.text, min_freq=minimum_frequency)
+    text.build_vocab(train.text, min_freq=minimum_frequency, max_size=MAX_VOCAB)
     if verbose:
         print('text vocab built')
 

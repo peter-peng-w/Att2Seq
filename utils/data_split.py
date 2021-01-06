@@ -21,7 +21,11 @@ def split(json_paths, verbose=True):
         data = []
         with open(json_path) as f:
             for line in f:
-                data.append(line)
+                if "\"overall\":" in line and "\"reviewerID\":" in line and "\"asin\":" in line and "\"reviewText\":" in line:
+                    assert line[0] == '{' and line[-2] == '}'
+                    data.append(line)
+                else:
+                    print(line)
         train_json_path = join(splitext(json_path)[0], 'train.json')
         test_json_path = join(splitext(json_path)[0], 'test.json')
         val_json_path = join(splitext(json_path)[0], 'val.json')
@@ -53,7 +57,7 @@ if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('-d', '--data_dir', type=str, default='./data/Musical_Instruments_5.json', help='The path of the json data file')
+    parser.add_argument('-d', '--data_dir', type=str, default='./data/Musical_Instruments_5_2018.json', help='The path of the json data file')
     args = parser.parse_args()
 
     json_paths = [args.data_dir]
