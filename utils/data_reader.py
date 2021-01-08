@@ -36,12 +36,18 @@ def amazon_dataset_iters(
     user = data.Field(sequential=False)
 
     # Extract review text data
+    # text = data.Field(
+    #     sequential=True,
+    #     tokenize='spacy',
+    #     init_token="<sos>",
+    #     eos_token="<eos>",
+    #     fix_length=MAX_LENGTH + 2,
+    #     lower=True)
+
     text = data.Field(
         sequential=True,
-        tokenize='spacy',
         init_token="<sos>",
         eos_token="<eos>",
-        fix_length=MAX_LENGTH + 2,
         lower=True)
 
     # Extract rating data

@@ -244,7 +244,7 @@ def calculate_bleu(data, user_vocab, item_vocab, text_field, text_vocab, model, 
         user = vars(datum)['user']
         item = vars(datum)['item']
         rating = vars(datum)['rating']
-        refs = vars(datum)['rating']
+        refs = vars(datum)['text']
 
         pred_text = generate_review(model, device, user, item, rating, user_vocab, item_vocab, text_field, text_vocab, max_len)
 
@@ -331,7 +331,7 @@ def train(args):
     # TODO: Add learning rate scheduler
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=decay_lr)
 
-    TEXT_PAD_IDX = text_vocab.stoi[text_vocab.pad_token]
+    TEXT_PAD_IDX = text_vocab.stoi[text_field.pad_token]
 
     criterion = nn.CrossEntropyLoss(ignore_index=TEXT_PAD_IDX)
 
@@ -368,16 +368,16 @@ def train(args):
             start_time = time.time()
             # Test on the val set
             bleu_scores = calculate_bleu(val_data, user_vocab, item_vocab, text_field, text_vocab, model, device, epoch=epoch+1, dataset='val')
-            print('[VAL] [%d] rating BLEU-1: %.3f' % (epoch + 1, bleu_scores[0]))
-            print('[VAL] [%d] rating BLEU-2: %.3f' % (epoch + 1, bleu_scores[1]))
-            print('[VAL] [%d] rating BLEU-3: %.3f' % (epoch + 1, bleu_scores[2]))
-            print('[VAL] [%d] rating BLEU-4: %.3f' % (epoch + 1, bleu_scores[3]))
+            print('[VAL] [%d] rating BLEU-1: %.3f' % (epoch + 1, bleu_scores[0]*100))
+            print('[VAL] [%d] rating BLEU-2: %.3f' % (epoch + 1, bleu_scores[1]*100))
+            print('[VAL] [%d] rating BLEU-3: %.3f' % (epoch + 1, bleu_scores[2]*100))
+            print('[VAL] [%d] rating BLEU-4: %.3f' % (epoch + 1, bleu_scores[3]*100))
             # write the bleu score to the logging file
             with open('./exp/logging.txt', 'at') as f:
-                print('[VAL] [%d] rating BLEU-1: %.3f' % (epoch + 1, bleu_scores[0]), file=f)
-                print('[VAL] [%d] rating BLEU-2: %.3f' % (epoch + 1, bleu_scores[1]), file=f)
-                print('[VAL] [%d] rating BLEU-3: %.3f' % (epoch + 1, bleu_scores[2]), file=f)
-                print('[VAL] [%d] rating BLEU-4: %.3f' % (epoch + 1, bleu_scores[3]), file=f)
+                print('[VAL] [%d] rating BLEU-1: %.3f' % (epoch + 1, bleu_scores[0]*100), file=f)
+                print('[VAL] [%d] rating BLEU-2: %.3f' % (epoch + 1, bleu_scores[1]*100), file=f)
+                print('[VAL] [%d] rating BLEU-3: %.3f' % (epoch + 1, bleu_scores[2]*100), file=f)
+                print('[VAL] [%d] rating BLEU-4: %.3f' % (epoch + 1, bleu_scores[3]*100), file=f)
             end_time = time.time()
             val_mins, val_secs = epoch_time(start_time, end_time)
             print(f'Val. Generate Time: {val_mins}m {val_secs}s')
@@ -387,16 +387,16 @@ def train(args):
             start_time = time.time()
             # Test on the test set
             bleu_scores = calculate_bleu(test_data, user_vocab, item_vocab, text_field, text_vocab, model, device, epoch=epoch+1, dataset='test')
-            print('[TEST] [%d] rating BLEU-1: %.3f' % (epoch + 1, bleu_scores[0]))
-            print('[TEST] [%d] rating BLEU-2: %.3f' % (epoch + 1, bleu_scores[1]))
-            print('[TEST] [%d] rating BLEU-3: %.3f' % (epoch + 1, bleu_scores[2]))
-            print('[TEST] [%d] rating BLEU-4: %.3f' % (epoch + 1, bleu_scores[3]))
+            print('[TEST] [%d] rating BLEU-1: %.3f' % (epoch + 1, bleu_scores[0]*100))
+            print('[TEST] [%d] rating BLEU-2: %.3f' % (epoch + 1, bleu_scores[1]*100))
+            print('[TEST] [%d] rating BLEU-3: %.3f' % (epoch + 1, bleu_scores[2]*100))
+            print('[TEST] [%d] rating BLEU-4: %.3f' % (epoch + 1, bleu_scores[3]*100))
             # write the bleu score to the logging file
             with open('./exp/logging.txt', 'at') as f:
-                print('[TEST] [%d] rating BLEU-1: %.3f' % (epoch + 1, bleu_scores[0]), file=f)
-                print('[TEST] [%d] rating BLEU-2: %.3f' % (epoch + 1, bleu_scores[1]), file=f)
-                print('[TEST] [%d] rating BLEU-3: %.3f' % (epoch + 1, bleu_scores[2]), file=f)
-                print('[TEST] [%d] rating BLEU-4: %.3f' % (epoch + 1, bleu_scores[3]), file=f)
+                print('[TEST] [%d] rating BLEU-1: %.3f' % (epoch + 1, bleu_scores[0]*100), file=f)
+                print('[TEST] [%d] rating BLEU-2: %.3f' % (epoch + 1, bleu_scores[1]*100), file=f)
+                print('[TEST] [%d] rating BLEU-3: %.3f' % (epoch + 1, bleu_scores[2]*100), file=f)
+                print('[TEST] [%d] rating BLEU-4: %.3f' % (epoch + 1, bleu_scores[3]*100), file=f)
             end_time = time.time()
             test_mins, test_secs = epoch_time(start_time, end_time)
             print(f'Test Generate Time: {test_mins}m {test_secs}s')
@@ -408,16 +408,16 @@ def train(args):
     print(f'| Test Loss: {test_loss:.3f} | Test PPL: {math.exp(test_loss):7.3f} |')
     # Test on the test set
     bleu_scores = calculate_bleu(test_data, user_vocab, item_vocab, text_field, text_vocab, model, device, epoch='final', dataset='test')
-    print('[TEST] [final] rating BLEU-1: %.3f' % (bleu_scores[0]))
-    print('[TEST] [final] rating BLEU-2: %.3f' % (bleu_scores[1]))
-    print('[TEST] [final] rating BLEU-3: %.3f' % (bleu_scores[2]))
-    print('[TEST] [final] rating BLEU-4: %.3f' % (bleu_scores[3]))
+    print('[TEST] [final] rating BLEU-1: %.3f' % (bleu_scores[0]*100))
+    print('[TEST] [final] rating BLEU-2: %.3f' % (bleu_scores[1]*100))
+    print('[TEST] [final] rating BLEU-3: %.3f' % (bleu_scores[2]*100))
+    print('[TEST] [final] rating BLEU-4: %.3f' % (bleu_scores[3]*100))
     # write the bleu score to the logging file
     with open('./exp/logging.txt', 'at') as f:
-        print('[TEST] [final] rating BLEU-1: %.3f' % (bleu_scores[0]), file=f)
-        print('[TEST] [final] rating BLEU-2: %.3f' % (bleu_scores[1]), file=f)
-        print('[TEST] [final] rating BLEU-3: %.3f' % (bleu_scores[2]), file=f)
-        print('[TEST] [final] rating BLEU-4: %.3f' % (bleu_scores[3]), file=f)
+        print('[TEST] [final] rating BLEU-1: %.3f' % (bleu_scores[0]*100), file=f)
+        print('[TEST] [final] rating BLEU-2: %.3f' % (bleu_scores[1]*100), file=f)
+        print('[TEST] [final] rating BLEU-3: %.3f' % (bleu_scores[2]*100), file=f)
+        print('[TEST] [final] rating BLEU-4: %.3f' % (bleu_scores[3]*100), file=f)
 
 
 if __name__ == '__main__':
