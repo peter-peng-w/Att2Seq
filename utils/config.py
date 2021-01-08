@@ -23,6 +23,8 @@ MIN_FREQ = 10
 MAX_LENGTH = 60
 MAX_VOCAB = 20000
 
+MAX_GENE_LEN = 60
+
 rating_range = 5
 # rev_len = 31
 

@@ -128,7 +128,7 @@ class Att2Seq(nn.Module):
 
         # construct initial hidden state
         # (encoder output) hidden: (batch_size, dec_hid_dim, rnn_layers)
-        hidden = hidden.permute(2, 0, 1)
+        hidden = hidden.permute(2, 0, 1).contiguous()
         # (after permute) hidden: (rnn_layers, batch_size, dec_hid_dim)
 
         # first input to the decoder is the <sos> tokens

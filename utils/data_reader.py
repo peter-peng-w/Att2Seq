@@ -93,4 +93,4 @@ def amazon_dataset_iters(
 
     print('============== Dataset Loaded ==============')
 
-    return item.vocab, user.vocab, text.vocab, train_iter, val_iter, test_iter
+    return item.vocab, user.vocab, text.vocab, text, train_iter, val_iter, test_iter

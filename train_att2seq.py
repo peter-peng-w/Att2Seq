@@ -9,50 +9,53 @@ from os import path
 from utils.data_reader import amazon_dataset_iters
 from utils import config
 from model.att2seq import Decoder, Encoder, Att2Seq
-from nltk.translate.bleu_score import sentence_bleu
+
 from nltk.translate import bleu_score
+# from nltk.translate.bleu_score import sentence_bleu
 
 
-def test_review_bleu(gts_data, generate_data, vocab, bleu_totals, length, epoch):
-    type_wights = [
-        [1., 0, 0, 0],
-        [.5, .5, 0, 0],
-        [1 / 3, 1 / 3, 1 / 3, 0],
-        [.25, .25, .25, .25]
-    ]
-    write_file = './generate_sentence.txt'
-    sf = bleu_score.SmoothingFunction()
+# def test_review_bleu(gts_data, generate_data, vocab, bleu_totals, length, epoch):
+#     type_wights = [
+#         [1., 0, 0, 0],
+#         [.5, .5, 0, 0],
+#         [1 / 3, 1 / 3, 1 / 3, 0],
+#         [.25, .25, .25, .25]
+#     ]
+#     write_file = './generate_sentence.txt'
+#     sf = bleu_score.SmoothingFunction()
 
-    # batch first
-    gts_idx = torch.transpose(gts_data, 0, 1)
-    _, generate_idx = generate_data.max(2)
-    generate_idx = torch.transpose(generate_idx, 0, 1)
+#     # batch first
+#     gts_idx = torch.transpose(gts_data, 0, 1)
+#     _, generate_idx = generate_data.max(2)
+#     generate_idx = torch.transpose(generate_idx, 0, 1)
 
-    gts_sentence = []
-    gene_sentence = []
-    # detokenize the sentence
-    for token_ids in gts_idx:
-        current = [vocab.itos[id] for id in token_ids.detach().cpu().numpy()]
-        gts_sentence.append(current)
-    for token_ids in generate_idx:
-        current = [vocab.itos[id] for id in token_ids.detach().cpu().numpy()]
-        gene_sentence.append(current)
+#     gts_sentence = []
+#     gene_sentence = []
+#     # detokenize the sentence
+#     for token_ids in gts_idx:
+#         current = [vocab.itos[id] for id in token_ids.detach().cpu().numpy()]
+#         gts_sentence.append(current)
+#     for token_ids in generate_idx:
+#         current = [vocab.itos[id] for id in token_ids.detach().cpu().numpy()]
+#         gene_sentence.append(current)
 
-    with open(write_file, 'at') as f:
-        for i in range(len(gts_sentence)):
-            print('Epoch: {0} || gt: {1} || gene: {2}'.format(epoch, gts_sentence[i], gene_sentence[i]), file=f)
+#     with open(write_file, 'at') as f:
+#         for i in range(len(gts_sentence)):
+#             print('Epoch: {0} || gt: {1} || gene: {2}'.format(epoch, gts_sentence[i], gene_sentence[i]), file=f)
 
-    # compute bleu score
-    assert len(gts_sentence) == len(gene_sentence)
-    for i in range(len(gts_sentence)):
-        length += 1
-        for j in range(4):
-            refs = gts_sentence[i]
-            sample = gene_sentence[i]
-            weights = type_wights[j]
-            bleu_totals[j] += bleu_score.sentence_bleu(refs, sample, smoothing_function=sf.method1, weights=weights)
+#     # compute bleu score
+#     assert len(gts_sentence) == len(gene_sentence)
+#     for i in range(len(gts_sentence)):
+#         refs = gts_sentence[i]
+#         sample = gene_sentence[i]
+#         if len(refs) == 0:
+#             continue
+#         length += 1
+#         for j in range(4):
+#             weights = type_wights[j]
+#             bleu_totals[j] += bleu_score.sentence_bleu([refs], sample, smoothing_function=sf.method1, weights=weights)
 
-    return bleu_totals, length
+#     return bleu_totals, length
 
 
 def test_review_bleu_new(gts_data, generate_data, vocab, bleu_totals, length, epoch):
@@ -103,12 +106,14 @@ def test_review_bleu_new(gts_data, generate_data, vocab, bleu_totals, length, ep
     # compute bleu score
     assert len(gts_sentence) == len(gene_sentence)
     for i in range(len(gts_sentence)):
+        refs = gts_sentence[i]
+        sample = gene_sentence[i]
+        if len(refs) == 0:
+            continue
         length += 1
         for j in range(4):
-            refs = gts_sentence[i]
-            sample = gene_sentence[i]
             weights = type_wights[j]
-            bleu_totals[j] += bleu_score.sentence_bleu(refs, sample, smoothing_function=sf.method1, weights=weights)
+            bleu_totals[j] += bleu_score.sentence_bleu([refs], sample, smoothing_function=sf.method1, weights=weights)
 
     return bleu_totals, length
 
@@ -193,6 +198,77 @@ def valid_epoch_without_bleu(model, iterator, criterion, epoch, text_vocab):
     return epoch_loss / len(iterator)
 
 
+def generate_review(model, device, user, item, rating, user_vocab, item_vocab, text_field, text_vocab, max_len=config.MAX_GENE_LEN):
+    # user/item/rating: (batch_size(=1),)
+    user = torch.LongTensor([user_vocab.stoi[user]]).to(device)
+    item = torch.LongTensor([item_vocab.stoi[item]]).to(device)
+    rating = torch.LongTensor([rating]).to(device)
+    model.eval()
+    # Feed data into the encoder
+    with torch.no_grad():
+        hidden, _, _, _ = model.encoder(user, item, rating)
+        hidden = hidden.permute(2, 0, 1).contiguous()
+    text_indexes = [text_vocab.stoi[text_field.init_token]]
+    # Generation procedure
+    for i in range(max_len):
+        text_tensor = torch.LongTensor([text_indexes[-1]]).to(device)
+        with torch.no_grad():
+            output, hidden = model.decoder(text_tensor, hidden)
+        pred_token = output.argmax(1).item()
+        if pred_token == text_vocab.stoi[text_field.eos_token]:
+            break
+        text_indexes.append(pred_token)
+    # Transform indexes to tokens in order to generate a review sentence
+    text_tokens = [text_vocab.itos[i] for i in text_indexes]
+
+    return text_tokens[1:]
+
+
+def calculate_bleu(data, user_vocab, item_vocab, text_field, text_vocab, model, device, epoch, dataset='test', max_len=config.MAX_GENE_LEN):
+    trgs = []
+    pred_trgs = []
+
+    type_weights = [
+        [1., 0, 0, 0],
+        [.5, .5, 0, 0],
+        [1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0, 0],
+        [.25, .25, .25, .25]
+    ]
+
+    write_file = './text_results/generate_{0}_{1}.txt'.format(dataset, epoch)
+    sf = bleu_score.SmoothingFunction()
+    bleu_totals = [0.] * 4
+    cnt_bleu = 0
+
+    for datum in data:
+        user = vars(datum)['user']
+        item = vars(datum)['item']
+        rating = vars(datum)['rating']
+        refs = vars(datum)['rating']
+
+        pred_text = generate_review(model, device, user, item, rating, user_vocab, item_vocab, text_field, text_vocab, max_len)
+
+        trgs.append(refs)
+        pred_trgs.append(pred_text)
+
+        if len(refs) == 0:
+            continue
+
+        cnt_bleu += 1
+        for i in range(4):
+            weights = type_weights[i]
+            bleu_totals[i] += bleu_score.sentence_bleu([refs], pred_text, smoothing_function=sf.method1, weights=weights)
+
+    # write generated reviews into txt file
+    with open(write_file, 'w') as f:
+        for i in range(len(trgs)):
+            print('GT: {0} || GE: {1}'.format(trgs[i], pred_trgs[i]), file=f)
+
+    # compute BLEU score
+    bleu_totals = [bleu_total / cnt_bleu for bleu_total in bleu_totals]
+    return bleu_totals
+
+
 def epoch_time(start_time, end_time):
     elapsed_time = end_time - start_time
     elapsed_mins = int(elapsed_time / 60)
@@ -231,7 +307,7 @@ def train(args):
 
     # Loading the dataset
     dataset_folder = config.dataset_path
-    item_vocab, user_vocab, text_vocab, train_iter, val_iter, test_iter = (
+    item_vocab, user_vocab, text_vocab, text_field, train_iter, val_iter, test_iter, val_data, test_data = (
         amazon_dataset_iters(dataset_folder, batch_sizes=(config.train_batch, config.val_batch, config.test_batch))
     )
 
@@ -267,21 +343,11 @@ def train(args):
         # Training Procedure
         train_loss = train_epoch(model, train_iter, optimizer, criterion, config.CLIP, config.teacher_forcing)
         # Validation Procedure
-        # valid_loss = valid_epoch(model, val_iter, criterion, epoch, text_vocab)
         valid_loss = valid_epoch_without_bleu(model, val_iter, criterion, epoch, text_vocab)
         # valid_loss_train = valid_epoch(model, train_iter, criterion, epoch, text_vocab)
         end_time = time.time()
         epoch_mins, epoch_secs = epoch_time(start_time, end_time)
         scheduler.step()
-        if valid_loss < best_valid_loss:
-            best_valid_loss = valid_loss
-            torch.save(model.state_dict(), 'att2seq_best.pth')
-
-        if (epoch + 1) % args.save_model_freq == 0:
-            torch.save(model.state_dict(), 'att2seq_{}_epoch.pth'.format(epoch+1))
-
-        if (epoch + 1) % 5 == 0:
-            valid_loss_bleu = valid_epoch(model, val_iter, criterion, epoch, text_vocab)
 
         current_lr = optimizer.param_groups[0]['lr']
         print(f'Epoch: {epoch+1:02} | Time: {epoch_mins}m {epoch_secs}s | LR: {current_lr}')
@@ -289,11 +355,69 @@ def train(args):
         print(f'\t Val. Loss(valid): {valid_loss:.3f} |  Val. PPL: {math.exp(valid_loss):7.3f}')
         # print(f'\t Val. Loss(train): {valid_loss_train:.3f} |  Val. PPL: {math.exp(valid_loss_train):7.3f}')
 
+        # save model with best loss result on validation set
+        if valid_loss < best_valid_loss:
+            best_valid_loss = valid_loss
+            torch.save(model.state_dict(), './exp/att2seq_best.pth')
+        # save model at some frequency
+        if (epoch + 1) % args.save_model_freq == 0:
+            torch.save(model.state_dict(), './exp/att2seq_{}_epoch.pth'.format(epoch+1))
+
+        # Generating sentences on validation set and compute BLEU scores
+        if (epoch + 1) % args.val_freq == 0:
+            start_time = time.time()
+            # Test on the val set
+            bleu_scores = calculate_bleu(val_data, user_vocab, item_vocab, text_field, text_vocab, model, device, epoch=epoch+1, dataset='val')
+            print('[VAL] [%d] rating BLEU-1: %.3f' % (epoch + 1, bleu_scores[0]))
+            print('[VAL] [%d] rating BLEU-2: %.3f' % (epoch + 1, bleu_scores[1]))
+            print('[VAL] [%d] rating BLEU-3: %.3f' % (epoch + 1, bleu_scores[2]))
+            print('[VAL] [%d] rating BLEU-4: %.3f' % (epoch + 1, bleu_scores[3]))
+            # write the bleu score to the logging file
+            with open('./exp/logging.txt', 'at') as f:
+                print('[VAL] [%d] rating BLEU-1: %.3f' % (epoch + 1, bleu_scores[0]), file=f)
+                print('[VAL] [%d] rating BLEU-2: %.3f' % (epoch + 1, bleu_scores[1]), file=f)
+                print('[VAL] [%d] rating BLEU-3: %.3f' % (epoch + 1, bleu_scores[2]), file=f)
+                print('[VAL] [%d] rating BLEU-4: %.3f' % (epoch + 1, bleu_scores[3]), file=f)
+            end_time = time.time()
+            val_mins, val_secs = epoch_time(start_time, end_time)
+            print(f'Val. Generate Time: {val_mins}m {val_secs}s')
+
+        # Generating sentences on test set and compute BLEU scores
+        if (epoch + 1) % args.test_freq == 0:
+            start_time = time.time()
+            # Test on the test set
+            bleu_scores = calculate_bleu(test_data, user_vocab, item_vocab, text_field, text_vocab, model, device, epoch=epoch+1, dataset='test')
+            print('[TEST] [%d] rating BLEU-1: %.3f' % (epoch + 1, bleu_scores[0]))
+            print('[TEST] [%d] rating BLEU-2: %.3f' % (epoch + 1, bleu_scores[1]))
+            print('[TEST] [%d] rating BLEU-3: %.3f' % (epoch + 1, bleu_scores[2]))
+            print('[TEST] [%d] rating BLEU-4: %.3f' % (epoch + 1, bleu_scores[3]))
+            # write the bleu score to the logging file
+            with open('./exp/logging.txt', 'at') as f:
+                print('[TEST] [%d] rating BLEU-1: %.3f' % (epoch + 1, bleu_scores[0]), file=f)
+                print('[TEST] [%d] rating BLEU-2: %.3f' % (epoch + 1, bleu_scores[1]), file=f)
+                print('[TEST] [%d] rating BLEU-3: %.3f' % (epoch + 1, bleu_scores[2]), file=f)
+                print('[TEST] [%d] rating BLEU-4: %.3f' % (epoch + 1, bleu_scores[3]), file=f)
+            end_time = time.time()
+            test_mins, test_secs = epoch_time(start_time, end_time)
+            print(f'Test Generate Time: {test_mins}m {test_secs}s')
+
     # Testing Procedure
     print('Finished training, start testing ...')
     model.load_state_dict(torch.load('att2seq_best.pth'))
     test_loss = valid_epoch(model, test_iter, criterion, args.num_epoch, text_vocab)
     print(f'| Test Loss: {test_loss:.3f} | Test PPL: {math.exp(test_loss):7.3f} |')
+    # Test on the test set
+    bleu_scores = calculate_bleu(test_data, user_vocab, item_vocab, text_field, text_vocab, model, device, epoch='final', dataset='test')
+    print('[TEST] [final] rating BLEU-1: %.3f' % (bleu_scores[0]))
+    print('[TEST] [final] rating BLEU-2: %.3f' % (bleu_scores[1]))
+    print('[TEST] [final] rating BLEU-3: %.3f' % (bleu_scores[2]))
+    print('[TEST] [final] rating BLEU-4: %.3f' % (bleu_scores[3]))
+    # write the bleu score to the logging file
+    with open('./exp/logging.txt', 'at') as f:
+        print('[TEST] [final] rating BLEU-1: %.3f' % (bleu_scores[0]), file=f)
+        print('[TEST] [final] rating BLEU-2: %.3f' % (bleu_scores[1]), file=f)
+        print('[TEST] [final] rating BLEU-3: %.3f' % (bleu_scores[2]), file=f)
+        print('[TEST] [final] rating BLEU-4: %.3f' % (bleu_scores[3]), file=f)
 
 
 if __name__ == '__main__':
@@ -309,6 +433,7 @@ if __name__ == '__main__':
     parser.add_argument('-sf', '--save_model_freq', type=int, default=5, help='Frequency of saving model, per epoch')
     parser.add_argument('-s', '--save_dir', type=str, default='./exp', help='The path of experiment model dir')
     parser.add_argument('-b', '--batch_size', type=int, default=64, help='batch size for traning')
-
+    parser.add_argument('-vf', '--val_freq', type=int, default=5, help='Frequency of testing (generate text) model on validset and compute scores, per epoch')
+    parser.add_argument('-tf', '--test_freq', type=int, default=5, help='Frequency of testing (generate text) model on testset and compute scores, per epoch')
     args = parser.parse_args()
     train(args)
