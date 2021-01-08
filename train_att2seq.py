@@ -8,7 +8,7 @@ import torch.utils.tensorboard as tb
 from os import path
 from utils.data_reader import amazon_dataset_iters
 from utils import config
-from model.att2seq import Decoder, Encoder, Attention, Att2Seq
+from model.att2seq import Decoder, Encoder, Att2Seq
 from nltk.translate.bleu_score import sentence_bleu
 from nltk.translate import bleu_score
 
@@ -116,7 +116,7 @@ def test_review_bleu_new(gts_data, generate_data, vocab, bleu_totals, length, ep
 def train_epoch(model, iterator, optimizer, criterion, clip, teacher_forcing_ratio=1.0):
     model.train()
     epoch_loss = 0.0
-    running_loss = 0.0
+    # running_loss = 0.0
     for i, batch in enumerate(iterator):
         user = batch.user
         # print('user shape: {}'.format(user.shape))
@@ -142,7 +142,7 @@ def train_epoch(model, iterator, optimizer, criterion, clip, teacher_forcing_rat
         optimizer.step()
         # statistics
         epoch_loss += loss.item()
-        running_loss += loss.item()
+        # running_loss += loss.item()
     return epoch_loss / len(iterator)
 
 
@@ -164,7 +164,7 @@ def valid_epoch(model, iterator, criterion, epoch, text_vocab):
             loss = criterion(pred_output, gt_text)
             epoch_loss += loss.item()
             # compute bleu
-            bleu_totals, num_reviews = test_review_bleu(text[1:], output, text_vocab, bleu_totals, num_reviews, epoch)
+            bleu_totals, num_reviews = test_review_bleu_new(text[1:], output, text_vocab, bleu_totals, num_reviews, epoch)
     bleu_totals = [bleu_total / num_reviews for bleu_total in bleu_totals]
     print('[%d] rating BLEU-1: %.3f' % (epoch + 1, bleu_totals[0]))
     print('[%d] rating BLEU-2: %.3f' % (epoch + 1, bleu_totals[1]))
@@ -242,8 +242,7 @@ def train(args):
 
     # Load model
     enc = Encoder(users_count, items_count)
-    attn = Attention(config.enc_hid_dim, config.dec_hid_dim)
-    dec = Decoder(vocab_size, config.word_dim, config.enc_hid_dim, config.dec_hid_dim, config.rnn_layers, config.dropout, attn)
+    dec = Decoder(vocab_size, config.word_dim, config.enc_hid_dim, config.dec_hid_dim, config.rnn_layers, config.dropout)
 
     model = Att2Seq(enc, dec, device)
 
@@ -251,12 +250,12 @@ def train(args):
 
     model.apply(init_weights)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
+    # optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
     optimizer = torch.optim.RMSprop(model.parameters(), lr=config.learning_rate, alpha=config.alpha)
     # TODO: Add learning rate scheduler
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=decay_lr)
 
-    TEXT_PAD_IDX = text_vocab.stoi['<pad>']
+    TEXT_PAD_IDX = text_vocab.stoi[text_vocab.pad_token]
 
     criterion = nn.CrossEntropyLoss(ignore_index=TEXT_PAD_IDX)
 
@@ -280,6 +279,9 @@ def train(args):
 
         if (epoch + 1) % args.save_model_freq == 0:
             torch.save(model.state_dict(), 'att2seq_{}_epoch.pth'.format(epoch+1))
+
+        if (epoch + 1) % 5 == 0:
+            valid_loss_bleu = valid_epoch(model, val_iter, criterion, epoch, text_vocab)
 
         current_lr = optimizer.param_groups[0]['lr']
         print(f'Epoch: {epoch+1:02} | Time: {epoch_mins}m {epoch_secs}s | LR: {current_lr}')
