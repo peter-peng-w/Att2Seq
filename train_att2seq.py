@@ -65,7 +65,7 @@ def test_review_bleu_new(gts_data, generate_data, vocab, bleu_totals, length, ep
         [1 / 3, 1 / 3, 1 / 3, 0],
         [.25, .25, .25, .25]
     ]
-    write_file = './generate_sentence_new.txt'
+    write_file = './text_results/generate_sentence_new.txt'
     sf = bleu_score.SmoothingFunction()
 
     # batch first
@@ -403,7 +403,7 @@ def train(args):
 
     # Testing Procedure
     print('Finished training, start testing ...')
-    model.load_state_dict(torch.load('att2seq_best.pth'))
+    model.load_state_dict(torch.load('./exp/att2seq_best.pth'))
     test_loss = valid_epoch(model, test_iter, criterion, args.num_epoch, text_vocab)
     print(f'| Test Loss: {test_loss:.3f} | Test PPL: {math.exp(test_loss):7.3f} |')
     # Test on the test set

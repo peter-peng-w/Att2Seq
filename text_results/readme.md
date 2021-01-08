@@ -1,0 +1,1 @@
+Folder to store generated review texts at each epoch
